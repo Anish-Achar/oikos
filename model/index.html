@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oikos · interactive 3D model</title>
+<meta name="description" content="Interactive 3D model of Oikos, a solar-powered wildfire detector: 2nd place at the Provost's Sustainability Challenge, Trinity College Dublin, 2026.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:,">
+<!-- Standalone copy of the viewer on anishachar.com (project 01). oikos.js is the same file the site uses; the styles
+     below are the site's viewer styles. three.js is self-hosted in ./vendor, so the page makes no outside requests. -->
+<style>
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url(fonts/inter-latin.woff2) format("woff2"); }
+:root {
+  --bg: #000; --surface: #0c0c0c; --surface-2: #151515;
+  --line: rgba(255, 255, 255, 0.09); --line-2: rgba(255, 255, 255, 0.14); --line-3: rgba(255, 255, 255, 0.26);
+  --ink: #fafafa; --ink-2: #b8b8b8; --muted: #949494; --dim: #8a8a8a; --hover: rgba(255, 255, 255, 0.06);
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+a { color: var(--ink); }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 28px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+h1 { margin: 0; font-size: clamp(30px, 4vw, 44px); font-weight: 600; letter-spacing: -0.045em; line-height: 1; }
+header p { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+.award { display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; background: linear-gradient(140deg, #fff 0%, #d9d9d9 40%, #a6a6a6 70%, #ececec 100%); color: #0b0b0b; font: 600 13px/1 var(--font); text-decoration: none; }
+.award svg { width: 15px; height: 15px; }
+footer { margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.label { font: 500 12.5px/1.35 var(--font); color: var(--muted); }
+
+.viewer { display: grid; grid-template-columns: minmax(0, 1fr) 340px; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #161616 0%, #050505 72%); }
+.viewer-stage { position: relative; height: clamp(460px, calc(100svh - 190px), 780px); touch-action: none; }
+#ok-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+#ok-canvas.hovering { cursor: pointer; }
+#ok-canvas:active { cursor: grabbing; }
+.v-loading { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; font: 500 13px/1 var(--font); color: var(--muted); transition: opacity 0.5s; }
+.v-loading.done { opacity: 0; pointer-events: none; }
+.v-loading.failed .bar { display: none; }
+.viewer:not(.ready) :is(.v-tools, .viewer-side .parts-head, .v-title p) { visibility: hidden; }
+.v-loading.failed span { max-width: 320px; text-align: center; line-height: 1.6; color: var(--ink-2); }
+.v-loading .bar { width: 160px; height: 2px; background: var(--line-2); border-radius: 2px; overflow: hidden; }
+.v-loading .bar i { display: block; width: 40%; height: 100%; background: #fff; animation: load 1.1s infinite var(--ease); }
+@keyframes load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.v-title { position: absolute; top: 18px; left: 20px; right: 150px; pointer-events: none; }
+.v-title .label { color: var(--ink); font-weight: 600; }
+.v-title p { margin: 4px 0 0; font: 400 13px/1.4 var(--font); color: var(--muted); }
+.v-tools { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.v-tools button { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 999px; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font: 500 13px/1 var(--font); color: var(--ink-2); cursor: pointer; transition: all 0.2s; }
+.v-tools button:hover { border-color: var(--line-3); color: var(--ink); }
+.v-tools button[aria-pressed="true"] { border-color: #fff; color: #000; background: #fff; }
+.v-tools button svg { width: 14px; height: 14px; }
+.v-tip { position: absolute; z-index: 3; pointer-events: none; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; background: rgba(12, 12, 12, 0.95); font: 500 13px/1.25 var(--font); color: var(--ink); white-space: nowrap; transform: translate(14px, 14px); }
+.v-tip small { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
+.viewer-side { border-left: 1px solid var(--line); background: rgba(10, 10, 10, 0.85); display: flex; flex-direction: column; min-height: 0; max-height: clamp(460px, calc(100svh - 190px), 780px); }
+.parts-head { display: flex; justify-content: space-between; align-items: baseline; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+.parts-head .label { color: var(--ink); font-weight: 600; font-size: 14px; }
+.parts-head span:last-child { font: 400 12.5px/1 var(--font); color: var(--dim); }
+.parts-list { list-style: none; margin: 0; padding: 6px 0 12px; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
+.parts-cat { padding: 16px 18px 6px; font: 500 12px/1 var(--font); color: var(--dim); }
+.part-item { border-left: 2px solid transparent; transition: background 0.2s, border-color 0.2s; }
+.part-item.hot { background: var(--hover); }
+.part-item.open { background: var(--surface-2); border-left-color: #fff; }
+.part-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 0; background: none; text-align: left; cursor: pointer; }
+.part-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.part-name { flex: 1; font-size: 14.5px; color: var(--ink); }
+.part-count { font: 500 12px/1 var(--font); color: var(--dim); font-variant-numeric: tabular-nums; }
+.part-chev { flex: none; width: 14px; height: 14px; color: var(--dim); transition: transform 0.3s var(--ease); }
+.part-item.open .part-chev { transform: rotate(90deg); color: var(--ink); }
+.part-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s var(--ease); }
+.part-item.open .part-body { grid-template-rows: 1fr; }
+.part-body > div { overflow: hidden; }
+.part-body-in { padding: 2px 16px 16px 36px; }
+.part-body p { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.spec-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 12px; font-size: 13px; }
+.spec-dl dt { color: var(--muted); padding-top: 1px; }
+.spec-dl dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 1020px) {
+  .viewer { grid-template-columns: 1fr; }
+  .viewer-stage { height: 62vh; min-height: 420px; }
+  .viewer-side { border-left: 0; border-top: 1px solid var(--line); max-height: 520px; }
+}
+@media (max-width: 560px) {
+  .viewer-stage { height: 66vh; min-height: 400px; }
+  .v-tools button { height: 34px; padding: 0 10px; font-size: 12px; }
+  .v-tools button .t-label { display: none; }
+  .v-title { right: 64px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<script>if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('reduce-motion');</script>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/three.module.min.js",
+  "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <h1>Oikos</h1>
+      <p>A solar-powered detector that catches a wildfire while it’s still small</p>
+    </div>
+    <a class="award" href="https://github.com/Anish-Achar/oikos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg>2nd place · Provost’s Sustainability Challenge</a>
+  </header>
+
+  <div class="viewer" id="ok-viewer">
+    <div class="viewer-stage" id="ok-stage">
+      <canvas id="ok-canvas" role="img" aria-label="Interactive 3D model of the Oikos wildfire detector"></canvas>
+      <div class="v-loading" id="ok-loading"><div class="bar"><i></i></div><span id="ok-loading-text">Building the model…</span></div>
+      <div class="v-title"><div class="label">Interactive model</div><p>Drag to rotate · click a part · explode it to see inside</p></div>
+      <div class="v-tools" role="toolbar" aria-label="Viewer controls">
+        <button type="button" data-act="explode" aria-pressed="false" title="Exploded view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          <span class="t-label">Explode</span>
+        </button>
+        <button type="button" data-act="xray" aria-pressed="false" title="See-through case">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span class="t-label">X-ray</span>
+        </button>
+        <button type="button" data-act="reset" title="Reset the view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4"/></svg>
+          <span class="t-label">Reset</span>
+        </button>
+      </div>
+      <div class="v-tip" id="ok-tip" hidden></div>
+    </div>
+    <aside class="viewer-side" aria-label="Detector parts">
+      <div class="parts-head"><span class="label">Parts</span><span>3 groups · 14 parts</span></div>
+      <ul class="parts-list" id="ok-parts"></ul>
+    </aside>
+  </div>
+
+  <footer>
+    A simplified rebuild of our team’s CAD design, made in code with three.js. Built by Anish A, Adarsh A, Luka C, Nihal M and Tanmai H.
+    · <a href="https://github.com/Anish-Achar/oikos">The project on GitHub</a> · <a href="https://anishachar.com/#projects/oikos">The full write-up on anishachar.com</a>
+  </footer>
+</main>
+<script type="module">
+  import { initOikos } from './oikos.js';
+  initOikos();
+</script>
+</body>
+</html>
